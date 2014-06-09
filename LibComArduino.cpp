@@ -8,10 +8,13 @@
 
 #include "libcomarduino.h"
 
-#define DEFAULT_TIMEOUT_OPEN              10 // seconds
+#define DEFAULT_TIMEOUT_OPEN              60 // seconds
 #define DEFAULT_TIMEOUT_OPEN_ACKNOWLEDGE  30 // seconds
 #define DEFAULT_TIMEOUT_ACKNOWLEDGE        2 // seconds
 
+namespace libcomarduino
+{
+   
 /////////////////////////////////////////////////////
 //
 // PUBLIC
@@ -114,17 +117,15 @@ boolean ComArduino::funcOpen(bool Acknowledge)
       {
       Serial.flush();
       boolean connected = false;
-      int Inc=timeout_open_acknowledge;
-      while((Inc--)&&(!connected))
+      int Inc=timeout_open_acknowledge/5;
+      
+      while((!connected)&&(Inc--))
          {
          Serial.flush();
-         connected = WriteStr(String(ARDUINO_ID), Acknowledge);
-         delay(1000-DEFAULT_TIMEOUT_ACKNOWLEDGE);
+         WriteStr(String(ARDUINO_ID), false);
+         connected = ReadAcknowledge(true, 5);
+         Serial.flush();
          }
-      Serial.flush();
-      
-      // !! here add read/write speed average.
-      
       Dump("Done)");
       return connected;
       }
@@ -152,6 +153,7 @@ boolean ComArduino::funcIsConnected()
       }
    Dump(")");
    }
+   
 
 boolean ComArduino::funcIsDataIn()
    {
@@ -227,7 +229,7 @@ boolean ComArduino::funcWriteInt(int     Out,
    Serial.println(Out);
    delay(20);
    
-   boolean check = ReadAcknowledge(Acknowledge);
+   boolean check = ReadAcknowledge(Acknowledge, timeout_acknowledge);
    Dump(")");
    return check;
    }
@@ -251,7 +253,7 @@ boolean ComArduino::funcWriteMultipleInt(int*    OutPtr,
    Serial.println(Output);
    delay(20);
    
-   boolean check = ReadAcknowledge(Acknowledge);
+   boolean check = ReadAcknowledge(Acknowledge, timeout_acknowledge);
    Dump(")");
    return check;
 }
@@ -266,7 +268,7 @@ boolean ComArduino::funcWriteStr(String  Out,
    Serial.println(Out);
    delay(20);
    
-   boolean check = ReadAcknowledge(Acknowledge);
+   boolean check = ReadAcknowledge(Acknowledge, timeout_acknowledge);
    Dump(")");
    return check;
 }
@@ -298,13 +300,13 @@ void ComArduino::WriteAcknowledge(boolean doit,
    Dump(")]");
    }
 
-boolean ComArduino::ReadAcknowledge(boolean doit)
+boolean ComArduino::ReadAcknowledge(boolean doit, int timeout)
    {
    Dump("[ReadAcknowledge(");
    if(!doit) {Dump(")]"); return true;}
    
    int In=0;
-   int Inc=timeout_acknowledge;
+   int Inc=timeout;
    while(Inc--)
       {
       In = Serial.parseInt();
@@ -322,6 +324,7 @@ boolean ComArduino::ReadAcknowledge(boolean doit)
    }
 
 
+} // end namespace
 //
 // END OF FILE
 //

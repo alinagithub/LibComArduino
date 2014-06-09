@@ -6,9 +6,6 @@
 # DATE: June 2014
 #/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 
-
-# FAIRE UN OPERATION D'IDENTIFICATION DU ARDUINO!!!!
-
 import os
 import serial
 import time
@@ -16,9 +13,9 @@ import time
 DEFAULT_DEVICE_NAME         = "Arduino_Board"
 DEFAULT_COM_PORT            = "/dev/tty.usbmodem1451"
 DEFAULT_VERBOSE             = True
-DEFAULT_TIMEOUT_ACKNOWLEDGE = 5  # seconds
-DEFAULT_TIMEOUT_OPEN        = 30 # seconds
-DEFAULT_TIMEOUT_READ        = 1  # seconds
+DEFAULT_TIMEOUT_ACKNOWLEDGE = 5   # seconds
+DEFAULT_TIMEOUT_OPEN        = 120 # seconds
+DEFAULT_TIMEOUT_READ        = 1   # seconds
 
 #---------------------------------------------------------------------
 class ComArduino:
@@ -34,12 +31,18 @@ class ComArduino:
       self.timeout_read         = DEFAULT_TIMEOUT_READ
       self.timeout_open         = DEFAULT_TIMEOUT_OPEN
       self.com_unit_speed       = None
+      self.connected            = False
    
    #---------------------------------------------------------------------
    def Open(self, com_baudrate=9600):
-      
+
+      # Open serial port
+      if(self.verbose==True):
+         print("Opening the port...")
+         
       self.com_serial = serial.Serial(self.com_port)
-      
+
+      # Set serial port properties
       self.com_serial.baudrate = com_baudrate
       self.com_serial.bytesize = serial.EIGHTBITS
       self.com_serial.parity   = serial.PARITY_NONE
@@ -47,30 +50,52 @@ class ComArduino:
       self.com_serial.timeout  = 2
       self.com_serial.xonxoff  = 0
       self.com_serial.rtscts   = 0
-      
+
+      # Pause
       time.sleep(2.0)
+
+      if(self.com_serial.isOpen()==False):
+         if(self.verbose==True):
+            print(" -Open fail...")
+         return False
+
+      if(self.verbose==True):
+         print(" -Open pass...")
       
+      # Check device identity
+      if(self.verbose==True):
+         print("Checking device identity...")
+         
       self.Identify=None
       initime=time.time()
-      while((GetWord(self.Identify, 0)!=self.com_name) and ((time.time()-initime)<self.timeout_open)):
-         self.Identify = self.GetLine(self.timeout_read)
+      while((self.__GetWord(self.Identify, 0)!=self.com_name) and ((time.time()-initime)<self.timeout_open)):
+         self.Identify = self.ReadData()
          if(self.verbose==True):
-            print("[Read|Ref::"+GetWord(self.Identify, 0)+"|"+self.com_name+"]")
-   
-      if(self.verbose==True):
-         print("Open com_port to Arduino")
-         print(self.com_serial)
-         print("Identification: "+ self.com_name+" \ "+GetWord(self.Identify, 0))
+            print(" -[Read|Ref::"+self.__GetWord(self.Identify, 0)+"|"+self.com_name+"]")
 
-      if(GetWord(self.Identify,0)==self.com_name):
-         self.SendData(104);
-         self.ComSpeed()
-         return True
-      
+      # Measure communication Rx speed, then Acknowledge
+      if(self.__GetWord(self.Identify,0)==self.com_name):
+
+         if(self.verbose==True):
+            print(" -Connection opened...")
+         
+         self.connected = True
+         self.__EvalComSpeed();
+         time.sleep(2.0);
+         self.WriteData(104);
+
+         if(self.verbose==True):
+            self.Print()
+         
+         return True         
+         
+      if(self.verbose==True):
+         print(" -Connection fail...")
+
       return False
    
    #---------------------------------------------------------------------
-   def SendData(self, data, acknowledge=False):
+   def WriteData(self, data, acknowledge=False):
       
       if(self.com_serial.isOpen()):
          self.com_serial.write(str(data))
@@ -81,59 +106,82 @@ class ComArduino:
                break
             except:
                pass
+            
          time.sleep(0.1)
       
       
       if(acknowledge==True):
-         data = 0
+         data = ''
          initime=time.time()
-         while((data!=104) and ((time.time()-initime)<self.timeout_acknowledge)):
-            data=str(self.GetLine(self.timeout_read))
-         
-         return (data==104)
+         while((data!='104') and ((time.time()-initime)<self.timeout_acknowledge)):
+            data=self.__GetWord(str(self.ReadData()), 0)
+         return (data=='104')
+
+      ### MODIFICATION: IF ACKNOWLEDGEMENT, WE SHOULD TRY TO WRITE & FLUSH UNITL WE GET ANSWER
+      ### OR SLEEP LONGER TO SEE
       
       return True
    
    #---------------------------------------------------------------------
-   def ReceiveData(self):
-      data=str(self.com_serial.readline())
-      
-      if(self.verbose==True):
-         print("Receive: "+data)
-   
-   
-   #---------------------------------------------------------------------
-   def GetLine(self, timeout):
-      
-      line = None
+   def ReadData(self, acknowledge=False):
+
       initime=time.time()
-      
-      while((line==None) and ((time.time()-initime)<timeout)):
-         if(self.com_serial.isOpen()):
-            try:
-               line = self.com_serial.readline() # flush
-            except:
+      data=''
+      while((data=='') and ((time.time()-initime)<self.timeout_read)):
+         try:
+            data=str(self.com_serial.readline())
+         except:
                pass
-      
-      return line
+ 
+      if((data!='') and (acknowledge)):
+         self.WriteData(104)
+         
+      if(self.verbose==True):
+         print("Read: "+data)
+
+      return data
 
    #---------------------------------------------------------------------
-   def ComSpeed(self):
+   def __EvalComSpeed(self):
 
       initime=time.time()
 
       for x in range(0, 10):
-         self.SendData(1)
+         self.WriteData(1)
 
       self.com_unit_speed = (time.time()-initime)/10.0
+      self.com_serial.flush()
 
       if(self.verbose==True):
          print("ComSpeed: {0:.3f}msec".format(self.com_unit_speed*1000))
 
+   #---------------------------------------------------------------------
+   def Print(self):
 
+      if(self.com_serial and self.com_serial.isOpen() and self.connected):
+         print("==========================================================")
+         print "SERIAL COM INFO"
+         print " - Status   : opened and connected"
+         print " - Name     : "  + self.__GetWord(self.Identify, 0)
+         print " - Port     : "  + str(self.com_port)
+         print " - Baudrate : "  + str(self.com_serial.baudrate)
+         print " - Bytesize : "  + str(self.com_serial.bytesize)
+         print " - Parity   : "  + str(self.com_serial.parity)
+         print " - Stopbits : "  + str(self.com_serial.stopbits)
+         print " - Timeout  : "  + str(self.com_serial.timeout)
+         print " - Xonxoff  : "  + str(self.com_serial.xonxoff)
+         print " - Rtscts   : "  + str(self.com_serial.rtscts)
+         print(" - Tx speed : {0:.3f}msec".format(self.com_unit_speed*1000))
+         print("==========================================================")
+      else:
+         print("==========================================================")
+         print "SERIAL COM INFO"
+         print " - Status: closed/not_connected"
+         print("==========================================================")
+         
 #---------------------------------------------------------------------
-def GetWord(string, index):
-   if(string!=None):
-      if(len(string)>0):
-         return string.split()[index]
-   return ''
+   def __GetWord(self, string, index):
+      if(string!=None):
+         if(len(string)>0):
+            return string.split()[index]
+      return ''

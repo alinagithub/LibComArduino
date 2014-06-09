@@ -19,6 +19,8 @@
 
 #define ARDUINO_ID "Arduino_Board"
 
+namespace libcomarduino
+{
 
 class ComArduino
 {
@@ -53,7 +55,7 @@ private:
    boolean funcWriteStr(String Out, boolean Acknowledge);
    
 private:
-   boolean ReadAcknowledge(boolean doit);
+   boolean ReadAcknowledge(boolean doit, int timeout);
    void    WriteAcknowledge(boolean doit, int value);
    void    Dump(char* text);
    
@@ -98,6 +100,8 @@ public:
    int*     funclevelptr;
    boolean* funcverboseptr;
 };
+
+} // end namespace
 #endif
 
 //
