@@ -104,6 +104,7 @@ public:
 } // end namespace
 #endif
 
+using namespace libcomarduino;
 //
 // END OF FILE
 //

@@ -1,8 +1,6 @@
+
 #include <LibShift595Arduino.h>
 #include <LibComArduino.h>
-
-using namespace libshift595arduino;
-using namespace libcomarduino;
 
 //\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 // FILE: testlibcomarduino.ino
@@ -35,38 +33,38 @@ void setup()
   
   ComObj.verbose=false;
   
-  MyShiftReg.OffAllRegisters();
-  MyShiftReg.OnSingleRegister(0, 1);
-  
-  MyShiftReg.OnSingleRegister(0, 0);
+  MyShiftReg.OffAllRegisters();  
+  MyShiftReg.OnLowerHalfOnlyRegister(1);
   Connected = ComObj.Open(true);
-  MyShiftReg.OnSingleRegister(1, 0);
+  MyShiftReg.OffAllRegisters();
+  MyShiftReg.OnUpperHalfOnlyRegister(0);
+  delay(3000);
 }  
 
 void loop()
 {
   MyShiftReg.OffAllRegisters();
+  delay(100);
+  MyShiftReg.OnSingleRegister(0, 0);
+  delay(50);
   
   if(!Connected)
     {
     MyShiftReg.OffAllRegisters();
-    MyShiftReg.OnSingleRegister(4, 1);
-    MyShiftReg.OnSingleRegister(5, 1);
-    MyShiftReg.OnSingleRegister(6, 1);
-    MyShiftReg.OnSingleRegister(7, 1);
+    MyShiftReg.OnUpperHalfOnlyRegister(1);
     Serial.println("No remote connection");
     return;
     }
-  MyShiftReg.OnSingleRegister(4, 0);
   
   if(ComObj.IsDataIn())
     {
-    MyShiftReg.OnSingleRegister(2, 0);
+    MyShiftReg.OnSingleRegister(1, 0);
     ComObj.ReadInt(&DataIn, false);
-    MyShiftReg.OnSingleRegister(6, 0);
     ComObj.WriteInt(104);
-    MyShiftReg.OffSingleRegister(2, 0);
-    MyShiftReg.OffSingleRegister(6, 0);
+    MyShiftReg.OnLowerHalfRegister(1);
+    MyShiftReg.BlinkRegister(DataIn, 250, 1);
+    MyShiftReg.OffLowerHalfRegister(1);
+    MyShiftReg.OffSingleRegister(1, 0);
     }
    else
     {
@@ -79,7 +77,7 @@ void loop()
      else
        {
        MyShiftReg.OnSingleRegister(4, 1);
-       delay(1000);
+       delay(100);
        }
     MyShiftReg.OffSingleRegister(4, 1);
     MyShiftReg.OffSingleRegister(0, 1);

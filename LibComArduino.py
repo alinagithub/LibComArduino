@@ -34,7 +34,7 @@ class ComArduino:
       self.connected            = False
    
    #---------------------------------------------------------------------
-   def Open(self, com_baudrate=9600):
+   def Open(self, Acknowledge=True, com_baudrate=9600):
 
       # Open serial port
       if(self.verbose==True):
@@ -61,6 +61,12 @@ class ComArduino:
 
       if(self.verbose==True):
          print(" -Open pass...")
+
+      # Measure communication Rx speed, then return
+      if(Acknowledge!=True):
+         self.connected = True
+         time.sleep(2.0);
+         return True;
       
       # Check device identity
       if(self.verbose==True):
@@ -82,6 +88,8 @@ class ComArduino:
          self.connected = True
          self.__EvalComSpeed();
          time.sleep(2.0);
+         self.com_serial.flushInput()
+         self.com_serial.flushOutput()
          self.WriteData(104);
 
          if(self.verbose==True):
@@ -96,6 +104,70 @@ class ComArduino:
    
    #---------------------------------------------------------------------
    def WriteData(self, data, acknowledge=False):
+
+      if(acknowledge==False):
+         if(self.com_serial.isOpen()):
+            self.com_serial.write(str(data))
+         
+            while True:
+               try:
+                  time.sleep(0.01)
+                  break
+               except:
+                  pass               
+            time.sleep(0.1)
+            return True
+         else:
+            return False
+      
+      
+      if(acknowledge==True):
+         
+         data = ''
+         initime=time.time()
+         while((data!='104') and ((time.time()-initime)<self.timeout_acknowledge)):
+            if(self.com_serial.isOpen()):
+               self.com_serial.write(str(data))
+         
+               while True:
+                  try:
+                     time.sleep(0.01)
+                     break
+                  except:
+                     pass               
+               time.sleep(0.1)
+
+               data=self.__GetWord(str(self.ReadData()), 0)
+            if(data=='104'):
+               self.com_serial.flushOutput()
+               return True
+         else:
+            self.com_serial.flushOutput()
+            return False
+
+      return True
+   
+   #---------------------------------------------------------------------
+   def ReadData(self, acknowledge=False):
+
+      initime=time.time()
+      data=''
+      while((data=='') and ((time.time()-initime)<self.timeout_read)):
+         try:
+            data=str(self.com_serial.readline())
+         except:
+            pass
+ 
+      if((data!='') and (acknowledge)):
+         self.WriteData(104)
+         
+      if(self.verbose==True):
+         print("Read: "+data)
+
+      return data
+
+   #---------------------------------------------------------------------
+   def SendCommand(self, data, acknowledge=False):
       
       if(self.com_serial.isOpen()):
          self.com_serial.write(str(data))
@@ -121,25 +193,6 @@ class ComArduino:
       ### OR SLEEP LONGER TO SEE
       
       return True
-   
-   #---------------------------------------------------------------------
-   def ReadData(self, acknowledge=False):
-
-      initime=time.time()
-      data=''
-      while((data=='') and ((time.time()-initime)<self.timeout_read)):
-         try:
-            data=str(self.com_serial.readline())
-         except:
-               pass
- 
-      if((data!='') and (acknowledge)):
-         self.WriteData(104)
-         
-      if(self.verbose==True):
-         print("Read: "+data)
-
-      return data
 
    #---------------------------------------------------------------------
    def __EvalComSpeed(self):
